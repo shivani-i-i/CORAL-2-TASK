@@ -1,0 +1,299 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{parskip}
+
+\definecolor{llnlblue}{RGB}{31,92,153}
+\hypersetup{colorlinks=true, linkcolor=llnlblue, urlcolor=llnlblue}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{llnlblue}{CORAL-2 Benchmark Report}}
+\lhead{\textcolor{gray}{\small May 2026}}
+\rfoot{\thepage}
+
+\titleformat{\section}{\large\bfseries\color{llnlblue}}{}{0em}{}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries}{}{0em}{}
+
+\begin{document}
+
+%% Title Page
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\Huge\bfseries\color{llnlblue} CORAL-2 Benchmark Suite\\[0.5em]}
+  {\Large\color{gray} Performance Evaluation Report}\\[1.5em]
+  \rule{0.6\textwidth}{0.4pt}\\[1em]
+  {\large Shivani}\\[0.3em]
+  {\normalsize May 21, 2026}\\[0.5em]
+  {\small Platform: Google Colab · 1x CPU · Ubuntu 22.04 · OpenMPI 4.1.2}
+  \vfill
+  {\small Benchmarks sourced from the LLNL CORAL-2 procurement suite.\\
+  \url{https://asc.llnl.gov/coral-2-benchmarks}}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+%% 1. Introduction
+\section{Introduction}
+
+This report documents the execution and results of ten benchmarks from the CORAL-2 (Collaboration Oak Ridge Argonne Livermore 2) suite, originally developed by Lawrence Livermore National Laboratory (LLNL) for large-scale HPC system procurement.
+
+All benchmarks were compiled from source and executed on Google Colab (single-node, single-CPU environment) using OpenMPI 4.1.2. Each benchmark was run a minimum of 10 times to capture variance.
+
+%% 2. Platform Configuration
+\section{Platform Configuration}
+
+\begin{table}[H]
+\centering
+\caption{Execution Environment}
+\begin{tabular}{ll}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Platform        & Google Colab (cloud) \\
+OS              & Ubuntu 22.04 LTS \\
+CPU             & Intel Xeon (1 vCPU, $\sim$2\,GHz) \\
+RAM             & $\sim$12\,GB \\
+GPU             & None (CPU-only runs) \\
+MPI Runtime     & OpenMPI 4.1.2 \\
+MPI Processes   & 1 (--allow-run-as-root) \\
+Compilers       & GCC 11.2, mpicxx, mpicc \\
+FFTW            & 3.3.8 (system) \\
+HDF5            & 1.10.7 (system) \\
+CMake           & 3.22.1 \\
+Date of Runs    & May 21, 2026 \\
+Runs per bench  & 10 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% 3. Application Configurations
+\section{Application Configurations}
+
+\subsection{1. STREAM}
+Memory bandwidth benchmark. Measures sustainable memory bandwidth (MB/s) for four kernels: Copy, Scale, Add, and Triad. Run with default array sizes on the system's available RAM.
+
+\subsection{2. AMG}
+Algebraic MultiGrid solver. Figure of Merit (FOM) is nnz$\cdot$iter/sec. Run with default problem size on 1 MPI rank.
+
+\subsection{3. Kripke}
+Deterministic neutron transport (Sn sweep) mini-app. FOM is unknowns/sec/iter. Run with default spatial and angular decomposition on 1 MPI rank.
+
+\subsection{4. PENNANT}
+Unstructured mesh hydrodynamics mini-app. Measures hydro cycle wall time in seconds. Run with the \texttt{sedov} test problem (small mesh).
+
+\subsection{5. Nekbone}
+Spectral element CFD proxy app. Measures execution time (seconds) and floating-point throughput (MFLOPS). Run with a small 3D mesh on 1 MPI rank.
+
+\subsection{6. HACC (Hardware Accelerated Cosmology Code)}
+
+\textbf{Version:} HACC\_1\_7\\
+\textbf{Build flags:}
+\begin{verbatim}
+HACC_MPI_CXX=mpicxx, HACC_MPI_CC=mpicc
+HACC_MPI_CFLAGS=-O3, HACC_MPI_CXXFLAGS=-O3
+FFTW_HOME=/usr, DFFTW3 enabled
+\end{verbatim}
+
+\textbf{Key input parameters (indat\_clean):}
+\begin{verbatim}
+ng  = 64         (grid points per dimension, reduced from 512)
+np  = 64         (particles per dimension, reduced from 1024)
+nsteps = 20
+zin = 300.0, zfin = 0.0
+sigma8 = 0.80
+box size = 64.0 h^{-1}Mpc
+MPI ranks = 1
+\end{verbatim}
+
+\subsection{7. LAMMPS (stable\_29Aug2024)}
+
+\textbf{Build:}
+\begin{verbatim}
+cmake ../cmake -DCMAKE_BUILD_TYPE=Release
+  -DBUILD_MPI=yes -DPKG_MANYBODY=yes -DPKG_MOLECULE=yes
+\end{verbatim}
+
+\textbf{Simulation input (Lennard-Jones liquid):}
+\begin{verbatim}
+units       lj
+atom_style  atomic
+lattice     fcc 0.8442
+region      box block 0 10 0 10 0 10
+pair_style  lj/cut 2.5
+pair_coeff  1 1 1.0 1.0 2.5
+fix         1 all nve
+run         1000
+\end{verbatim}
+
+\subsection{8. Quicksilver}
+
+\textbf{Version:} commit eb68bb8 (Aug 2023)\\
+\textbf{Build:} HIP/GPU flags removed; compiled with \texttt{mpicxx -DHAVE\_MPI -O2}.
+
+\textbf{Run parameters:}
+\begin{verbatim}
+-X 10 -Y 10 -Z 10   (mesh dimensions)
+-x 10 -y 10 -z 10   (spatial decomposition)
+-n 10000             (particles)
+-N 10                (cycles)
+MPI ranks = 1
+\end{verbatim}
+
+\subsection{9. QMCPACK}
+
+\textbf{Version:} latest main (cloned May 21, 2026)\\
+\textbf{Build:}
+\begin{verbatim}
+cmake .. -DCMAKE_C_COMPILER=mpicc
+         -DCMAKE_CXX_COMPILER=mpicxx
+         -DQMC_MPI=1 -DQMC_OMP=0
+\end{verbatim}
+
+\subsection{10. IOR}
+
+\textbf{Build:}
+\begin{verbatim}
+./bootstrap && ./configure CC=mpicc && make -j$(nproc)
+\end{verbatim}
+
+\textbf{Run parameters:}
+\begin{verbatim}
+-t 1m   (transfer size: 1 MB)
+-b 16m  (block size: 16 MB)
+-s 16   (segments)
+MPI ranks = 1
+\end{verbatim}
+
+%% 4. Results
+\section{Benchmark Results}
+
+\subsection{Summary Table}
+
+\begin{table}[H]
+\centering
+\caption{CORAL-2 Benchmark Results Summary (10 runs each)}
+\small
+\begin{tabular}{clllll}
+\toprule
+\textbf{\#} & \textbf{Benchmark} & \textbf{Key Metric} & \textbf{Avg} & \textbf{Min} & \textbf{Max} \\
+\midrule
+1 & STREAM    & Copy (MB/s)           & 11,359         & ---    & --- \\
+  &           & Scale (MB/s)          & 11,365         & ---    & --- \\
+  &           & Add (MB/s)            & 13,569         & ---    & --- \\
+  &           & Triad (MB/s)          & 13,675         & ---    & --- \\
+\midrule
+2 & AMG       & FOM (nnz$\cdot$iter/s)& 4.418e+05      & ---    & --- \\
+\midrule
+3 & Kripke    & Throughput (unkn/s/it)& 1.881e+07      & ---    & --- \\
+\midrule
+4 & PENNANT   & Hydro cycle time (s)  & 0.01038        & 0.01035 & 0.01041 \\
+\midrule
+5 & Nekbone   & Exec time (s)         & 0.4320         & 0.4230  & 0.4410 \\
+  &           & MFLOPS                & 2457.65        & ---     & ---    \\
+\midrule
+6 & HACC      & Total run time (s)    & 0.4236         & 0.3935  & 0.5580 \\
+\midrule
+7 & LAMMPS    & Wall time (s)         & 2.1000         & 2.0000  & 3.0000 \\
+\midrule
+8 & Quicksilver & Run time (s)        & 2.2327         & 2.0130  & 3.0860 \\
+\midrule
+9 & QMCPACK   & Run time (s)          & 0.0486         & 0.0433  & 0.0663 \\
+\midrule
+10 & IOR      & Write (MiB/s)         & 0.0248         & ---     & ---    \\
+   &          & Read (MiB/s)          & 0.0010         & ---     & ---    \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{HACC --- Per-Run Times}
+
+\begin{table}[H]
+\centering
+\caption{HACC Individual Run Times (64$^3$ grid)}
+\begin{tabular}{cc}
+\toprule
+\textbf{Run} & \textbf{Time (s)} \\
+\midrule
+1  & 0.393496 \\ 2  & 0.412831 \\ 3  & 0.401887 \\ 4  & 0.396793 \\ 5  & 0.405745 \\
+6  & 0.399611 \\ 7  & 0.426208 \\ 8  & 0.558041 \\ 9  & 0.425180 \\ 10 & 0.415998 \\
+\midrule
+\textbf{Avg} & \textbf{0.4236} \\
+\textbf{Min} & \textbf{0.3935} \\
+\textbf{Max} & \textbf{0.5580} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{LAMMPS --- Per-Run Times}
+
+\begin{table}[H]
+\centering
+\caption{LAMMPS Individual Run Times (LJ, 10$^3$ box, 1000 steps)}
+\begin{tabular}{cc}
+\toprule
+\textbf{Run} & \textbf{Time (s)} \\
+\midrule
+1  & 2 \\ 2  & 2 \\ 3  & 3 \\ 4  & 2 \\ 5  & 2 \\
+6  & 2 \\ 7  & 2 \\ 8  & 2 \\ 9  & 2 \\ 10 & 2 \\
+\midrule
+\textbf{Avg} & \textbf{2.1} \\
+\textbf{Min} & \textbf{2.0} \\
+\textbf{Max} & \textbf{3.0} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Quicksilver --- Per-Run Times}
+
+\begin{table}[H]
+\centering
+\caption{Quicksilver Individual Run Times (10k particles, 10 cycles)}
+\begin{tabular}{cc}
+\toprule
+\textbf{Run} & \textbf{Time (s)} \\
+\midrule
+1  & 2.9920 \\ 2  & 2.0570 \\ 3  & 2.0190 \\ 4  & 2.0130 \\ 5  & 2.0240 \\
+6  & 3.0860 \\ 7  & 2.0250 \\ 8  & 2.0300 \\ 9  & 2.0460 \\ 10 & 2.0350 \\
+\midrule
+\textbf{Avg} & \textbf{2.2327} \\
+\textbf{Min} & \textbf{2.0130} \\
+\textbf{Max} & \textbf{3.0860} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{QMCPACK --- Per-Run Times}
+
+\begin{table}[H]
+\centering
+\caption{QMCPACK Individual Run Times (small test problem)}
+\begin{tabular}{cc}
+\toprule
+\textbf{Run} & \textbf{Time (s)} \\
+\midrule
+1  & 0.0433 \\ 2  & 0.0468 \\ 3  & 0.0521 \\ 4  & 0.0486 \\ 5  & 0.0499 \\
+6  & 0.0512 \\ 7  & 0.0477 \\ 8  & 0.0503 \\ 9  & 0.0663 \\ 10 & 0.0486 \\
+\midrule
+\textbf{Avg} & \textbf{0.0486} \\
+\textbf{Min} & \textbf{0.0433} \\
+\textbf{Max} & \textbf{0.0663} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vfill
+\noindent\rule{\textwidth}{0.4pt}\\
+{\small Generated May 2026. Benchmarks from \url{https://asc.llnl.gov/coral-2-benchmarks}.}
+
+\end{document}
